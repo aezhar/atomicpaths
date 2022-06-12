@@ -18,6 +18,7 @@ import (
 	"errors"
 	"io/fs"
 	"os"
+	"path/filepath"
 )
 
 func renameToTemp(path string) (string, error) {
@@ -39,7 +40,32 @@ func renameToTemp(path string) (string, error) {
 	return "", ErrExhausted
 }
 
-func rename(oldPath, newPath string) error {
+func forceRemoveAll(p string) error {
+	err := filepath.WalkDir(p, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		fi, err := d.Info()
+		if err != nil {
+			return err
+		}
+
+		if fi.Mode().Perm()&0600 != 0600 {
+			return os.Chmod(path, fi.Mode().Perm()|0600)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return err
+	}
+
+	return os.RemoveAll(p)
+}
+
+func move(oldPath, newPath string) error {
 	switch err := os.Rename(oldPath, newPath); {
 	case err == nil:
 		// File was renamed successfully.
@@ -60,8 +86,8 @@ func rename(oldPath, newPath string) error {
 		return err
 	}
 
-	if err := rename(oldPath, newPath); err != nil {
+	if err := move(oldPath, newPath); err != nil {
 		return err
 	}
-	return os.RemoveAll(origTemp)
+	return forceRemoveAll(origTemp)
 }

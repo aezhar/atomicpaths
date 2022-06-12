@@ -52,14 +52,14 @@ func (d Dir) OriginalPath() string { return d.origPath }
 func (d *Dir) Close() error { return d.closeFn(d) }
 
 // Commit commits the temporary directory to the original path by
-// deleting the original path and moving the temporary directory
-// to the original's path location.
+// deleting the original path, if necessary, and moving the temporary
+// directory to the original's path location.
 func (d *Dir) Commit() error {
 	if d.isCommitted {
 		return ErrAlreadyCommitted
 	}
 
-	if err := rename(d.Path(), d.OriginalPath()); err != nil {
+	if err := move(d.Path(), d.OriginalPath()); err != nil {
 		return err
 	}
 	d.closeFn = dirCloseCommitted
