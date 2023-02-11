@@ -27,8 +27,10 @@ var randBitsEncoding = base32.HexEncoding.WithPadding(base32.NoPadding)
 
 func makeTempName(origPath string) (string, error) {
 	origPath = filepath.Clean(origPath)
+
+	// Specifying an empty path or the root directory is invalid.
 	if len(origPath) == 0 || origPath[len(origPath)-1] == filepath.Separator {
-		return "", fmt.Errorf("%w: %q", os.ErrInvalid, origPath)
+		return "", fmt.Errorf("%q: %w", origPath, os.ErrInvalid)
 	}
 
 	var rnd [5]byte
