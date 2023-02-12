@@ -76,7 +76,7 @@ func TestCreateDir_CommitNew(t *testing.T) {
 
 			// Calling Commit a second time should result in an error,
 			// since the Dir object is dead and there is nothing to be committed.
-			require.ErrorIs(d.Commit(), atomicpaths.ErrAlreadyCommitted)
+			require.ErrorIs(d.Commit(), atomicpaths.ErrCommitted)
 
 			// Calling close now should not result in an error since the
 			// changes were committed successfully.

@@ -60,7 +60,7 @@ func (f *File) commitClosed() error {
 }
 
 func (f *File) commitCommitted() error {
-	return ErrAlreadyCommitted
+	return ErrCommitted
 }
 
 func (f *File) commitUncommitted() error {

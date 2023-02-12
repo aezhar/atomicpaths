@@ -56,7 +56,7 @@ func (d *Dir) Close() error { return d.closeFn(d) }
 // directory to the original's path location.
 func (d *Dir) Commit() error {
 	if d.isCommitted {
-		return ErrAlreadyCommitted
+		return ErrCommitted
 	}
 
 	if err := move(d.Name(), d.OriginalPath()); err != nil {

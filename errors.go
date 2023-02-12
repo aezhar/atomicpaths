@@ -19,7 +19,12 @@ import (
 )
 
 var (
-	ErrExhausted        = errors.New("exhausted")
-	ErrAlreadyCommitted = errors.New("already committed")
-	ErrRolledBack       = errors.New("rolled back")
+	ErrExhausted = errors.New("exhausted")
+
+	// ErrCommitted states the given file was already committed.
+	ErrCommitted = errors.New("already committed")
+
+	// ErrRolledBack states commit was used after the file was
+	// already rolled back.
+	ErrRolledBack = errors.New("rolled back")
 )
