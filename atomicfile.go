@@ -7,73 +7,63 @@ import (
 	"os"
 	"path/filepath"
 
+	"go.uber.org/multierr"
 	"golang.org/x/sys/unix"
 )
-
-type stateFlags int
-
-func (s *stateFlags) is(f stateFlags) bool {
-	return *s&f == f
-}
-
-func (s *stateFlags) set(f stateFlags) {
-	*s |= f
-}
-
-const (
-	placed stateFlags = 1 << iota
-	closed
-	synced
-)
-
-func regCloseAgainError(*File) error {
-	return os.ErrInvalid
-}
-
-func regCloseCommitted(f *File) error {
-	f.closeFn = regCloseAgainError
-	return nil
-}
-
-func regCloseUncommitted(f *File) error {
-	f.closeFn = regCloseAgainError
-	return errors.Join(f.File.Close(), os.Remove(f.Name()))
-}
-
-func regCloseUncommittedAfterSync(f *File) error {
-	f.closeFn = regCloseAgainError
-	return os.Remove(f.Name())
-}
 
 // File represents a temporary file that on success can be "committed"
 // to the provided path and rolled back otherwise.
 type File struct {
 	*os.File
 
+	closeFn  func() error
+	commitFn func() error
+
 	origPath string
 	parentFd int
-	closeFn  func(f *File) error
-
-	state stateFlags
+	state    state
 }
 
-// OriginalPath returns the path to the original file.
-func (f *File) OriginalPath() string {
-	return f.origPath
+func (f *File) closeAgainError() error {
+	return os.ErrInvalid
 }
 
-// Close closes the File instance, removing any uncommitted temporary
-// files.
-func (f *File) Close() error { return f.closeFn(f) }
+func (f *File) closeCommitted() error {
+	f.closeFn = f.closeAgainError
+	return nil
+}
 
-// Commit flushes all unwritten changes to disk, closes the underlying
-// temporary file, making it impossible to apply any changes, and
-// commits the temporary file to the original path.
-func (f *File) Commit() error {
-	if f.state.is(synced) {
-		return ErrAlreadyCommitted
+func (f *File) closeUncommitted() (err error) {
+	f.closeFn = f.closeAgainError
+	f.commitFn = f.commitClosed
+
+	if !f.state.is(closed) {
+		multierr.AppendInto(&err, f.File.Close())
+		f.state.set(closed)
 	}
 
+	if !f.state.is(placed) {
+		multierr.AppendInto(&err, os.Remove(f.Name()))
+		f.state.set(placed)
+	}
+
+	if !f.state.is(synced) {
+		multierr.AppendInto(&err, unix.Close(f.parentFd))
+		f.state.set(synced)
+	}
+
+	return
+}
+
+func (f *File) commitClosed() error {
+	return ErrRolledBack
+}
+
+func (f *File) commitCommitted() error {
+	return ErrAlreadyCommitted
+}
+
+func (f *File) commitUncommitted() error {
 	if !f.state.is(closed) {
 		if err := f.File.Sync(); err != nil {
 			return fmt.Errorf("atomicpaths.commit: %w", err)
@@ -81,6 +71,7 @@ func (f *File) Commit() error {
 		if err := f.File.Close(); err != nil {
 			return fmt.Errorf("atomicpaths.commit: %w", err)
 		}
+
 		f.state.set(closed)
 	}
 
@@ -88,10 +79,8 @@ func (f *File) Commit() error {
 		oldName := filepath.Base(f.Name())
 		newName := filepath.Base(f.OriginalPath())
 		if err := rename(f.parentFd, oldName, newName); err != nil {
-			f.closeFn = regCloseUncommittedAfterSync
 			return fmt.Errorf("atomicpaths.commit: %w", err)
 		}
-		f.closeFn = regCloseCommitted
 
 		f.state.set(placed)
 	}
@@ -105,6 +94,8 @@ func (f *File) Commit() error {
 			err = &fs.PathError{Op: "close", Path: filepath.Dir(f.Name()), Err: err}
 			return fmt.Errorf("atomicpaths.commit: %w", err)
 		}
+		f.closeFn = f.closeCommitted
+		f.commitFn = f.commitCommitted
 
 		f.state.set(synced)
 	}
@@ -112,15 +103,34 @@ func (f *File) Commit() error {
 	return nil
 }
 
+// OriginalPath returns the path to the original file.
+func (f *File) OriginalPath() string {
+	return f.origPath
+}
+
+// Close closes the File instance, removing any uncommitted temporary
+// files.
+func (f *File) Close() error {
+	return f.closeFn()
+}
+
+// Commit flushes all unwritten changes to disk, closes the underlying
+// temporary file, making it impossible to apply any changes, and
+// commits the temporary file to the original path.
+//
+// Commit can be called repeatedly in case of an error to resolve
+// the returned problem and try again until the changes have been
+// committed successfully or abandoned.
+func (f *File) Commit() error {
+	return f.commitFn()
+}
+
 // CreateFile creates a temporary file that can be either atomically
 // committed to the given path or discarded.
 func CreateFile(origPath string, perm os.FileMode) (*File, error) {
 	parentPath := filepath.Dir(origPath)
 
-	flags := unix.O_RDONLY
-	flags |= unix.O_DIRECTORY
-	flags |= unix.O_CLOEXEC
-	parentFd, err := unix.Open(parentPath, flags, 0)
+	parentFd, err := openParent(parentPath)
 	if err != nil {
 		return nil, err
 	}
@@ -149,8 +159,9 @@ func CreateFile(origPath string, perm os.FileMode) (*File, error) {
 			File:     os.NewFile(uintptr(fileFd), tempPath),
 			parentFd: parentFd,
 			origPath: origPath,
-			closeFn:  regCloseUncommitted,
 		}
+		af.closeFn = af.closeUncommitted
+		af.commitFn = af.commitUncommitted
 		return af, nil
 	}
 	return nil, ErrExhausted

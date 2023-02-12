@@ -21,4 +21,5 @@ import (
 var (
 	ErrExhausted        = errors.New("exhausted")
 	ErrAlreadyCommitted = errors.New("already committed")
+	ErrRolledBack       = errors.New("rolled back")
 )
