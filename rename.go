@@ -19,11 +19,13 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+
+	"golang.org/x/sys/unix"
 )
 
 func renameToTemp(path string) (string, error) {
 	for i := 0; i < 1000; i++ {
-		tempName, err := makeTempName(path + ".original")
+		tempName, err := makeTempPath(path + ".original")
 		if err != nil {
 			return "", err
 		}
@@ -90,4 +92,8 @@ func move(oldPath, newPath string) error {
 		return err
 	}
 	return forceRemoveAll(origTemp)
+}
+
+func rename(parentFd int, oldName, newName string) error {
+	return unix.Renameat2(parentFd, oldName, parentFd, newName, 0)
 }

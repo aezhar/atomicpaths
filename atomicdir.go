@@ -69,12 +69,12 @@ func (d *Dir) Commit() error {
 
 func CreateDir(origPath string, perm fs.FileMode) (*Dir, error) {
 	for i := 0; i < 1000; i++ {
-		tempName, err := makeTempName(origPath)
+		tempPath, err := makeTempPath(origPath)
 		if err != nil {
 			return nil, err
 		}
 
-		if err := os.Mkdir(tempName, perm); err != nil {
+		if err := os.Mkdir(tempPath, perm); err != nil {
 			if errors.Is(err, fs.ErrExist) {
 				continue
 			}
@@ -83,7 +83,7 @@ func CreateDir(origPath string, perm fs.FileMode) (*Dir, error) {
 
 		return &Dir{
 			closeFn:  dirCloseUncommitted,
-			tempPath: tempName,
+			tempPath: tempPath,
 			origPath: origPath,
 		}, nil
 	}

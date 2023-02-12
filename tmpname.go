@@ -18,14 +18,28 @@ import (
 	"crypto/rand"
 	"encoding/base32"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
+var randSource = rand.Reader
+
 var randBitsEncoding = base32.HexEncoding.WithPadding(base32.NoPadding)
 
-func makeTempName(origPath string) (string, error) {
+func makeTempName(originalName string) (string, error) {
+	var rnd [5]byte
+	if _, err := io.ReadFull(randSource, rnd[:]); err != nil {
+		return "", fmt.Errorf("read rand: %w", err)
+	}
+	randBits := strings.ToLower(randBitsEncoding.EncodeToString(rnd[:]))
+
+	name := ".#" + originalName + "-" + randBits + ".tmp"
+	return name, nil
+}
+
+func makeTempPath(origPath string) (string, error) {
 	origPath = filepath.Clean(origPath)
 
 	// Specifying an empty path or the root directory is invalid.
@@ -33,12 +47,10 @@ func makeTempName(origPath string) (string, error) {
 		return "", fmt.Errorf("%q: %w", origPath, os.ErrInvalid)
 	}
 
-	var rnd [5]byte
-	if _, err := rand.Read(rnd[:]); err != nil {
-		return "", fmt.Errorf("read rand: %w", err)
+	name, err := makeTempName(filepath.Base(origPath))
+	if err != nil {
+		return "", err
 	}
-	randBits := strings.ToLower(randBitsEncoding.EncodeToString(rnd[:]))
 
-	name := ".#" + filepath.Base(origPath) + "-" + randBits + ".tmp"
 	return filepath.Join(filepath.Dir(origPath), name), nil
 }
