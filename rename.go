@@ -95,5 +95,5 @@ func move(oldPath, newPath string) error {
 }
 
 func rename(parentFd int, oldName, newName string) error {
-	return unix.Renameat2(parentFd, oldName, parentFd, newName, 0)
+	return unix.Renameat(parentFd, oldName, parentFd, newName)
 }
