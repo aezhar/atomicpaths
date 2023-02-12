@@ -35,8 +35,8 @@ func TestCreateDir(t *testing.T) {
 		return
 	}
 
-	assert.NotEmpty(d.Path())
-	assert.DirExists(d.Path())
+	assert.NotEmpty(d.Name())
+	assert.DirExists(d.Name())
 
 	assert.NoDirExists(tempDir)
 	assert.Equal(tempDir, d.OriginalPath())
@@ -72,7 +72,7 @@ func TestCreateDir_CommitNew(t *testing.T) {
 			require.NoError(d.Commit())
 
 			require.DirExists(tempDir)
-			require.NoDirExists(d.Path())
+			require.NoDirExists(d.Name())
 
 			// Calling Commit a second time should result in an error,
 			// since the Dir object is dead and there is nothing to be committed.

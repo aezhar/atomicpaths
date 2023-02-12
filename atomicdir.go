@@ -41,11 +41,11 @@ type Dir struct {
 	isCommitted bool
 }
 
-// Path returns the path to the temporary directory to be modified.
-func (d Dir) Path() string { return d.tempPath }
+// Name returns the path to the temporary directory to be modified.
+func (d *Dir) Name() string { return d.tempPath }
 
 // OriginalPath returns the path to the original directory.
-func (d Dir) OriginalPath() string { return d.origPath }
+func (d *Dir) OriginalPath() string { return d.origPath }
 
 // Close closes the Dir instance, removing any uncommitted temporary
 // files.
@@ -59,7 +59,7 @@ func (d *Dir) Commit() error {
 		return ErrAlreadyCommitted
 	}
 
-	if err := move(d.Path(), d.OriginalPath()); err != nil {
+	if err := move(d.Name(), d.OriginalPath()); err != nil {
 		return err
 	}
 	d.closeFn = dirCloseCommitted
